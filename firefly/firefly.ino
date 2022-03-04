@@ -33,6 +33,9 @@ bfs::SbusRx sbus(&Serial1);
 #define RIGHT_TIP_START (WING_TIP_LEDS + 2 * DOWN_LEDS)
 #define LEFT_TIP_START (0)
 
+#define LEFT_CENTER_IDX   (WING_TIP_LEDS + DOWN_LEDS-1)
+#define RIGHT_CENTER_IDX  (WING_TIP_LEDS + DOWN_LEDS)
+
 #define TOTAL_DOWN_LEDS  (2 * DOWN_LEDS )
 
 #define FIRST_DOWN_WING_LED (WING_TIP_LEDS)
@@ -57,7 +60,7 @@ enum{TICK_FLAG=0x0001};
 
 volatile unsigned flags = 0;
 
-SAMDTimer ITimer(TIMER_TC3);
+SAMDTimer ITimer(TIMER_TCC);
 
 void TickHandler()
 {
@@ -68,6 +71,7 @@ class LED_Pattern {
   public :
     uint8_t hue, sat, brt;
     int flightMode = MODE_INVALID, ledMode = MODE_INVALID;
+    bool fm_new = 0;
     unsigned int pos, count;
 
     void begin(void)
@@ -78,6 +82,7 @@ class LED_Pattern {
     void update_inputs(std::array<int16_t, bfs::SbusRx::NUM_CH()> chans)
     {
       int tmp;
+      int old_fm = flightMode;
       //convert channel value to hue
       hue = sbus2byte(chans[7]);
       //convert channel value to brightness value
@@ -97,14 +102,20 @@ class LED_Pattern {
       }
       //convert channel value to flight mode
       tmp = chans[5];
-      if(tmp > SBUS_NUTRAL)
-      {
-        flightMode = FLIGHT_MODE_LAUNCH;
-      }
-      else
+      if(tmp < SBUS_M50)
       {
         flightMode = FLIGHT_MODE_GLIDE;
       }
+      else if(tmp < SBUS_P50)
+      {
+        
+        flightMode = FLIGHT_MODE_ZOOM;
+      }
+      else
+      {
+        flightMode = FLIGHT_MODE_LAUNCH;
+      }
+      fm_new = flightMode != old_fm;
       //convert channel value to saturation value
       tmp = sbus2byte(chans[4]);
       //saturate values
@@ -211,6 +222,27 @@ class LED_Pattern {
         leds[LEFT_STAB_IDX] = colorL;
         leds[RIGHT_STAB_IDX] = colorR;
       }
+      else if(ledMode == LED_MODE_2)
+      {
+        
+        //set left tip to red
+        fill_solid(&leds[LEFT_TIP_START], WING_TIP_LEDS, CRGB(255, 0, 0));
+        //set right tip to Green
+        fill_solid(&leds[RIGHT_TIP_START], WING_TIP_LEDS, CRGB(0, 255, 0));
+        //fill solid purple in center
+        fill_solid(&leds[FIRST_DOWN_WING_LED], 2 * DOWN_LEDS, CHSV(HUE_AQUA, 130, 255));
+        //set stab LEDs to yellow
+        fill_solid(&leds[FIRST_STAB_LED], STAB_LEDS, CHSV(HUE_YELLOW, 130, 255));
+        // set the on board LED
+        fill_rainbow(&leds[FIRST_DOWN_WING_LED], DOWN_LEDS, HUE_RED - 4 , -4);
+        fill_rainbow(&leds[FIRST_DOWN_WING_LED + DOWN_LEDS], DOWN_LEDS, (uint8_t)(HUE_GREEN + 4*DOWN_LEDS - 4), -4);
+        
+        //set tail LEDS
+        leds[TOP_TAIL_IDX] = CRGB::White;
+  
+        leds[LEFT_STAB_IDX] = CRGB::Red;
+        leds[RIGHT_STAB_IDX] = CRGB::Green;
+      }
       else if(ledMode == LED_MODE_3)
       {
         count = 0;
@@ -235,20 +267,179 @@ class LED_Pattern {
           leds[LAST_DOWN_WING_LED - DOWN_LEDS + i].nscale8(val);
         }
       }
-      else if(ledMode == LED_MODE_2)
+      else if(ledMode == LED_MODE_4)
       {
+        //if we just switched flight modes, refresh things
+        if(fm_new)
+        {
+          pos = 0;
+          count = 0;
+        }
+
+        if(flightMode == FLIGHT_MODE_LAUNCH)
+        {
+          //launch things
+
+          //clear LEDs 
+          FastLED.clear();
+
+          //set wing tip color
+          fill_solid(&leds[LEFT_TIP_START], WING_TIP_LEDS, colorL);
+          fill_solid(&leds[RIGHT_TIP_START], WING_TIP_LEDS, colorR);
+
+          if(pos >= DOWN_LEDS)
+          {
+            pos = 0;
+          }
+
+          if(pos < DOWN_LEDS/2)
+          {
+            leds[LEFT_CENTER_IDX - 2*pos] = colorL;
+            leds[RIGHT_CENTER_IDX + 2*pos] = colorR;
+          }
+          else
+          {
+            leds[LEFT_CENTER_IDX - DOWN_LEDS + 2*(pos-DOWN_LEDS/2)] = colorL;
+            leds[RIGHT_CENTER_IDX + DOWN_LEDS - 2*(pos-DOWN_LEDS/2)] = colorR;
+          }
+        }
+        else if(flightMode == FLIGHT_MODE_ZOOM)
+        {
+          //zoom things
+
+          if(pos < DOWN_LEDS)
+          {
+            //clear LEDs 
+            FastLED.clear();
+  
+            //set wing tip color
+            fill_solid(&leds[LEFT_TIP_START], WING_TIP_LEDS, colorL);
+            fill_solid(&leds[RIGHT_TIP_START], WING_TIP_LEDS, colorR);
+
+            for(int i=0;i<pos;i++)
+            {
+              leds[LEFT_CENTER_IDX - DOWN_LEDS + i] = colorL;
+              leds[RIGHT_CENTER_IDX + DOWN_LEDS - i] = colorR;
+            }
+          }
+          else
+          {
+            fill_solid(leds, DOWN_LEDS + WING_TIP_LEDS, colorL);
+            fill_solid(&leds[LAST_DOWN_WING_LED - DOWN_LEDS +1], DOWN_LEDS + WING_TIP_LEDS, colorR);
+          }
+        }
+        else
+        {
+          //glide things
+          
+          if(pos < 5)
+          {
+            //flash white when entering glide
+            fill_solid(leds, NUM_LEDS, CRGB::White);
+              
+            //set wing tip color
+            fill_solid(&leds[LEFT_TIP_START], WING_TIP_LEDS, colorL);
+            fill_solid(&leds[RIGHT_TIP_START], WING_TIP_LEDS, colorR);
+            //force max brightness
+            FastLED.setBrightness( 255 );
+          }
+          else
+          {
+            fill_solid(leds, DOWN_LEDS + WING_TIP_LEDS, colorL);
+            fill_solid(&leds[LAST_DOWN_WING_LED - DOWN_LEDS +1], DOWN_LEDS + WING_TIP_LEDS, colorR);
+          }
+        }
+    
+        leds[TOP_TAIL_IDX] = colorAft;
+  
+        leds[LEFT_STAB_IDX] = colorL;
+        leds[RIGHT_STAB_IDX] = colorR;
         
-        //set left tip to red
-        fill_solid(&leds[LEFT_TIP_START], WING_TIP_LEDS, CRGB(255, 0, 0));
-        //set right tip to Green
-        fill_solid(&leds[RIGHT_TIP_START], WING_TIP_LEDS, CRGB(0, 255, 0));
-        //fill solid purple in center
-        fill_solid(&leds[FIRST_DOWN_WING_LED], 2 * DOWN_LEDS, CHSV(HUE_AQUA, 130, 255));
-        //set stab LEDs to yellow
-        fill_solid(&leds[FIRST_STAB_LED], STAB_LEDS, CHSV(HUE_YELLOW, 130, 255));
-        // set the on board LED
-        fill_rainbow(&leds[FIRST_DOWN_WING_LED], DOWN_LEDS, HUE_RED - 4 , -4);
-        fill_rainbow(&leds[FIRST_DOWN_WING_LED + DOWN_LEDS], DOWN_LEDS, (uint8_t)(HUE_GREEN + 4*DOWN_LEDS - 4), -4);
+        pos += 1;
+      }
+      else if(ledMode == LED_MODE_5)
+      {
+        //if we just switched flight modes, refresh things
+        if(fm_new)
+        {
+          pos = 0;
+          count = 0;
+        }
+
+        if(flightMode == FLIGHT_MODE_LAUNCH)
+        {
+          //launch things
+
+
+          //set wing tip color
+          fill_solid(&leds[LEFT_TIP_START], WING_TIP_LEDS, colorL);
+          fill_solid(&leds[RIGHT_TIP_START], WING_TIP_LEDS, colorR);
+          //rainbow colors, cause that looked cool in Josh Finn's video
+
+          uint8_t rnbw_hue = HUE_RED;
+          for(int i=0;i<DOWN_LEDS;i++,rnbw_hue+=32)
+          {
+            leds[FIRST_DOWN_WING_LED + i] = CHSV(rnbw_hue, 255, 255);
+            leds[FIRST_DOWN_WING_LED + 2*DOWN_LEDS - 1 - i] = CHSV(rnbw_hue, 255, 255);
+          }
+          
+        }
+        else if(flightMode == FLIGHT_MODE_ZOOM)
+        {
+          //zoom things
+
+          if(pos < DOWN_LEDS)
+          {
+            //clear LEDs 
+            FastLED.clear();
+          }
+          //set wing tip color
+          fill_solid(&leds[LEFT_TIP_START], WING_TIP_LEDS, colorL);
+          fill_solid(&leds[RIGHT_TIP_START], WING_TIP_LEDS, colorR);
+
+          uint8_t rnbw_hue = HUE_RED;
+          for(int i=0;i<pos && i<DOWN_LEDS;i++,rnbw_hue+=32)
+          {
+            leds[FIRST_DOWN_WING_LED + i] = CHSV(rnbw_hue, 255, 255);
+            leds[FIRST_DOWN_WING_LED + 2*DOWN_LEDS - 1 - i] = CHSV(rnbw_hue, 255, 255);
+          }
+        }
+        else
+        {
+          //glide things
+          
+          if(pos < 5)
+          {
+            //flash white when entering glide
+            fill_solid(leds, NUM_LEDS, CRGB::White);
+              
+            //set wing tip color
+            fill_solid(&leds[LEFT_TIP_START], WING_TIP_LEDS, colorL);
+            fill_solid(&leds[RIGHT_TIP_START], WING_TIP_LEDS, colorR);
+            //force max brightness
+            FastLED.setBrightness( 255 );
+          }
+          else
+          {
+            fill_solid(&leds[FIRST_DOWN_WING_LED + 5 + 32], 2 * (DOWN_LEDS - 5 - 32), colorFwd);
+            
+            fill_solid(&leds[LEFT_TIP_START], WING_TIP_LEDS + 5, colorL);
+            fill_solid(&leds[RIGHT_TIP_START - 5], WING_TIP_LEDS + 5, colorR);
+    
+            for(uint8_t i=0;i<32;i++)
+            {
+              leds[FIRST_DOWN_WING_LED + 5 + i ] = blend(colorL, colorFwd, 8 * i);
+              leds[LAST_DOWN_WING_LED - 5 - i] = blend(colorR, colorFwd, 8 * i);
+            }
+          }
+        }
+    
+        leds[TOP_TAIL_IDX] = colorAft;
+  
+        leds[LEFT_STAB_IDX] = colorL;
+        leds[RIGHT_STAB_IDX] = colorR;
+        
+        pos += 1;
       }
       else
       {
@@ -280,6 +471,8 @@ class LED_Pattern {
       color_swap(leds[TOP_TAIL_IDX ]);
       //write the data
       FastLED.show();
+      //flight mode is no longer new
+      fm_new = 0;
     }
 };
 
@@ -296,7 +489,7 @@ void setup() {
   FastLED.setBrightness( 255 ); // out of 255
   
   // set 1ms timer interrupt
-  ITimer.attachInterruptInterval(5 * 1000, TickHandler);   
+  ITimer.attachInterruptInterval(10 * 1000, TickHandler);   
 
   sbus.Begin();
 
