@@ -43,13 +43,15 @@ bfs::SbusRx sbus(&Serial1);
 
 #define FIRST_STAB_LED  (RIGHT_TIP_START + WING_TIP_LEDS)
 
-#define RIGHT_STAB_IDX  (FIRST_STAB_LED)
-#define LEFT_STAB_IDX   (FIRST_STAB_LED + 1)
+#define RIGHT_STAB_IDX  (FIRST_STAB_LED + 1)
+#define LEFT_STAB_IDX   (FIRST_STAB_LED)
 #define TOP_TAIL_IDX    (FIRST_STAB_LED + 2)
 
 #define MODE_INVALID    (-1)
 
 #define ZOOM_LED_SPEED  (3)
+
+#define TAIL_SAT        (150)
 
 enum{FLIGHT_MODE_LAUNCH=0, FLIGHT_MODE_ZOOM, FLIGHT_MODE_GLIDE};
 enum{LED_MODE_0=0, LED_MODE_1, LED_MODE_2, LED_MODE_3, LED_MODE_4, LED_MODE_5, LED_MODE_OFF};
@@ -180,14 +182,20 @@ class LED_Pattern {
 
     void update_LEDs(void)
     {
-      CRGB colorR,colorL,colorFwd,colorAft;
+      CRGB colorR,colorL,colorFwd,colorAft,tailR,tailL;
+
+      //Set max saturation for tail LEDS
+      uint8_t tail_sat = min(sat, TAIL_SAT);
+
       //set brightness based on value
       FastLED.setBrightness( brt );
   
       colorR   = CHSV(hue      ,sat,255);
       colorFwd = CHSV(hue + 64 ,sat,255);
       colorL   = CHSV(hue + 128,sat,255);
-      colorAft = CHSV(hue + 192,sat,255);
+      colorAft = CHSV(hue + 192,tail_sat,255);
+      tailL    = CHSV(hue + 128,tail_sat,255);
+      tailR    = CHSV(hue      ,tail_sat,255);
 
       //set regulator enable
       digitalWrite(REG_PIN, (ledMode == LED_MODE_OFF)?LOW:HIGH);
@@ -203,8 +211,8 @@ class LED_Pattern {
     
         leds[TOP_TAIL_IDX] = colorAft;
   
-        leds[LEFT_STAB_IDX] = colorL;
-        leds[RIGHT_STAB_IDX] = colorR;
+        leds[LEFT_STAB_IDX] = tailL;
+        leds[RIGHT_STAB_IDX] = tailR;
       }
       else if(ledMode == LED_MODE_1)
       {
@@ -221,8 +229,8 @@ class LED_Pattern {
     
         leds[TOP_TAIL_IDX] = colorAft;
   
-        leds[LEFT_STAB_IDX] = colorL;
-        leds[RIGHT_STAB_IDX] = colorR;
+        leds[LEFT_STAB_IDX] = tailL;
+        leds[RIGHT_STAB_IDX] = tailR;
       }
       else if(ledMode == LED_MODE_2)
       {
@@ -259,8 +267,8 @@ class LED_Pattern {
     
         leds[TOP_TAIL_IDX] = colorAft;
   
-        leds[LEFT_STAB_IDX] = colorL;
-        leds[RIGHT_STAB_IDX] = colorR;
+        leds[LEFT_STAB_IDX] = tailL;
+        leds[RIGHT_STAB_IDX] = tailR;
 
         for(int i=0;i<DOWN_LEDS;i++)
         {
@@ -354,8 +362,8 @@ class LED_Pattern {
     
         leds[TOP_TAIL_IDX] = colorAft;
   
-        leds[LEFT_STAB_IDX] = colorL;
-        leds[RIGHT_STAB_IDX] = colorR;
+        leds[LEFT_STAB_IDX] = tailL;
+        leds[RIGHT_STAB_IDX] = tailR;
         
         pos += 1;
       }
@@ -438,8 +446,8 @@ class LED_Pattern {
     
         leds[TOP_TAIL_IDX] = colorAft;
   
-        leds[LEFT_STAB_IDX] = colorL;
-        leds[RIGHT_STAB_IDX] = colorR;
+        leds[LEFT_STAB_IDX] = tailL;
+        leds[RIGHT_STAB_IDX] = tailR;
         
         pos += 1;
       }
