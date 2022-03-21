@@ -49,6 +49,8 @@ bfs::SbusRx sbus(&Serial1);
 
 #define MODE_INVALID    (-1)
 
+#define ZOOM_LED_SPEED  (3)
+
 enum{FLIGHT_MODE_LAUNCH=0, FLIGHT_MODE_ZOOM, FLIGHT_MODE_GLIDE};
 enum{LED_MODE_0=0, LED_MODE_1, LED_MODE_2, LED_MODE_3, LED_MODE_4, LED_MODE_5, LED_MODE_OFF};
 
@@ -307,7 +309,7 @@ class LED_Pattern {
         {
           //zoom things
 
-          if(pos < DOWN_LEDS)
+          if(pos < DOWN_LEDS/ZOOM_LED_SPEED)
           {
             //clear LEDs 
             FastLED.clear();
@@ -316,7 +318,7 @@ class LED_Pattern {
             fill_solid(&leds[LEFT_TIP_START], WING_TIP_LEDS, colorL);
             fill_solid(&leds[RIGHT_TIP_START], WING_TIP_LEDS, colorR);
 
-            for(int i=0;i<pos;i++)
+            for(int i=0;i<(ZOOM_LED_SPEED*pos) && i<DOWN_LEDS;i++)
             {
               leds[LEFT_CENTER_IDX - DOWN_LEDS + i] = colorL;
               leds[RIGHT_CENTER_IDX + DOWN_LEDS - i] = colorR;
@@ -388,7 +390,7 @@ class LED_Pattern {
         {
           //zoom things
 
-          if(pos < DOWN_LEDS)
+          if(pos < DOWN_LEDS/ZOOM_LED_SPEED)
           {
             //clear LEDs 
             FastLED.clear();
@@ -398,7 +400,7 @@ class LED_Pattern {
           fill_solid(&leds[RIGHT_TIP_START], WING_TIP_LEDS, colorR);
 
           uint8_t rnbw_hue = HUE_RED;
-          for(int i=0;i<pos && i<DOWN_LEDS;i++,rnbw_hue+=32)
+          for(int i=0;i<ZOOM_LED_SPEED*pos && i<DOWN_LEDS;i++,rnbw_hue+=32)
           {
             leds[FIRST_DOWN_WING_LED + i] = CHSV(rnbw_hue, 255, 255);
             leds[FIRST_DOWN_WING_LED + 2*DOWN_LEDS - 1 - i] = CHSV(rnbw_hue, 255, 255);
